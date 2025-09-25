@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Demat Account Landing</title>
+<style>
+  body { font-family: Arial; margin:0; padding:0; background:#f5f5f5; }
+  header { background:#0073e6; color:white; padding:15px 20px; display:flex; justify-content:flex-end; }
+  header button { margin-left:10px; padding:8px 12px; border:none; border-radius:4px; cursor:pointer; font-weight:bold; }
+  header button.login { background:#fff; color:#0073e6; }
+  header button.signup { background:#ffcc00; color:#333; }
+  .container { display:flex; justify-content:center; align-items:center; height:80vh; }
+  .form-box { background:white; padding:30px; border-radius:8px; box-shadow:0 5px 20px rgba(0,0,0,0.1); width:320px; display:none; }
+  .form-box h3 { margin-top:0; }
+  .form-box input { width:100%; padding:8px; margin:8px 0; box-sizing:border-box; }
+  .form-box button { width:100%; padding:10px; margin-top:10px; cursor:pointer; }
+  .password-field { position:relative; display:flex; align-items:center; }
+  .password-field input { flex:1; padding:8px; }
+  .password-field button { margin-left:5px; width:24px; height:100%; font-size:12px; line-height:1; padding:0; }
+  ul { padding-left:20px; }
+  li { margin-bottom:10px; }
+</style>
+</head>
+<body>
+
+<header>
+  <button class="login" onclick="showLogin()">Login</button>
+  <button class="signup" onclick="showSignUp()">Sign Up</button>
+</header>
+
+<div class="container">
+  <!-- Login Form -->
+  <div id="loginBox" class="form-box">
+    <h3>Login</h3>
+    <input type="text" id="usernameInput" placeholder="Username">
+    <div class="password-field">
+      <input type="password" id="passwordInput" placeholder="Password">
+      <button type="button" onclick="togglePassword('passwordInput')">👁️</button>
+    </div>
+    <input type="text" id="pinInput" placeholder="Or PIN">
+    <button onclick="login()">Login</button>
+  </div>
+
+  <!-- Sign Up Form -->
+  <div id="signUpBox" class="form-box">
+    <h3>Create Account</h3>
+    <input type="text" id="newUsername" placeholder="Choose Username">
+    <div class="password-field">
+      <input type="password" id="newPassword" placeholder="Choose Password">
+      <button type="button" onclick="togglePassword('newPassword')">👁️</button>
+    </div>
+    <button onclick="createAccount()">Sign Up</button>
+  </div>
+</div>
+
+<!-- Firebase Compat SDK -->
+<script src="https://www.gstatic.com/firebasejs/12.3.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.3.0/firebase-firestore-compat.js"></script>
+
+<script>
+  // Firebase config
+  const firebaseConfig = {
+    apiKey: "AIzaSyAWbGcjl4ZVUp7cUlb0k9JkgcZzD4ZgDgQ",
+    authDomain: "demat-account-database.firebaseapp.com",
+    projectId: "demat-account-database",
+    storageBucket: "demat-account-database.firebasestorage.app",
+    messagingSenderId: "356787864438",
+    appId: "1:356787864438:web:aaab1748891d814453f057",
+    measurementId: "G-HZQS1NV8HK"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
+  let currentUser = "";
+  const adminUsername = "admin";
+  const adminPassword = "admin123";
+  const adminPin = "98765432";
+
+  function showLogin() {
+    document.getElementById("loginBox").style.display = "block";
+    document.getElementById("signUpBox").style.display = "none";
+  }
+
+  function showSignUp() {
+    document.getElementById("loginBox").style.display = "none";
+    document.getElementById("signUpBox").style.display = "block";
+  }
+
+  function togglePassword(inputId) {
+    const input = document.getElementById(inputId);
+    input.type = input.type === "password" ? "text" : "password";
+  }
+
+  function generatePin() {
+    return Math.floor(10000000 + Math.random() * 90000000).toString();
+  }
+
+  async function createAccount() {
+    const username = document.getElementById("newUsername").value.trim();
+    const password = document.getElementById("newPassword").value.trim();
+    if (!username || !password) { alert("Fill all fields!"); return; }
+
+    const userRef = db.collection("accounts").doc(username);
+    const userSnap = await userRef.get();
+
+    if (userSnap.exists) {
+      alert("Username already exists!");
+      return;
+    }
+
+    const pin = generatePin();
+    await userRef.set({ username, password, pin, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+    alert("✅ Account created! Your PIN: " + pin);
+    showLogin();
+    document.getElementById("usernameInput").value = username;
+    document.getElementById("passwordInput").value = "";
+    document.getElementById("pinInput").value = "";
+  }
+
+  async function login() {
+    const username = document.getElementById("usernameInput").value.trim();
+    const password = document.getElementById("passwordInput").value;
+    const pin = document.getElementById("pinInput").value;
+
+    if (username === adminUsername && (password === adminPassword || pin === adminPin)) {
+      showAdminPanel();
+      return;
+    }
+
+    const userRef = db.collection("accounts").doc(username);
+    const userSnap = await userRef.get();
+
+    if (!userSnap.exists) {
+      alert("Username not found!");
+    } else {
+      const data = userSnap.data();
+      if (data.password === password || data.pin === pin) {
+        alert("✅ Login successful! Welcome " + username + "\nYour PIN: " + data.pin);
+      } else {
+        alert("❌ Incorrect password or PIN!");
+      }
+    }
+  }
+
+  async function showAdminPanel() {
+    const accountsCol = db.collection("accounts");
+    const snapshot = await accountsCol.get();
+    let panelHtml = "<h3>Admin Panel - All Accounts</h3><ul>";
+    snapshot.forEach(docItem => {
+      const data = docItem.data();
+      panelHtml += `<li><b>${data.username}</b> - Password: ${data.password}, PIN: ${data.pin} 
+      <button onclick="deleteAccount('${docItem.id}')">Delete</button></li>`;
+    });
+    panelHtml += "</ul><button onclick='location.reload()'>Logout Admin</button>";
+    document.body.innerHTML = panelHtml;
+  }
+
+  async function deleteAccount(username) {
+    await db.collection("accounts").doc(username).delete();
+    alert(username + " deleted!");
+    showAdminPanel();
+  }
+</script>
+
+</body>
+</html>
